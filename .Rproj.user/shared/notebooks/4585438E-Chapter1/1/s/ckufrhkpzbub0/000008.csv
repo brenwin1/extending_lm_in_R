@@ -1,0 +1,36 @@
+"0","stats::termplot(lmodi,
+                partial = TRUE,
+                terms = 1)
+
+visreg::visreg(lmodi,
+               xvar = ""cperAA"")
+"
+"2","  Note that you are attempting to plot a 'main effect' in a model that contains an
+  interaction.  This is potentially misleading; you may wish to consider using the 'by'
+  argument."
+"1","Conditions used in construction of plot
+"
+"1","cpergore"
+"1",""
+"1",": "
+"1",""
+"1","-0.02087437"
+"1",""
+"1","
+"
+"1","usage"
+"1",""
+"1",": "
+"1",""
+"1","rural"
+"1",""
+"1","
+"
+"1","equip"
+"1",""
+"1",": "
+"1",""
+"1","LEVER"
+"1",""
+"1","
+"

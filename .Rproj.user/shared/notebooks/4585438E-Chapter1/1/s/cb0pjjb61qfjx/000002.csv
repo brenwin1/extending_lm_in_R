@@ -1,0 +1,20 @@
+"0","gavote %>% 
+  janitor::tabyl(var1 = atlanta,
+                 var2 = usage)
+"
+"1",""
+"1","    atlanta"
+"1"," rural"
+"1"," urban"
+"1","
+"
+"1","    Atlanta"
+"1","     1"
+"1","    14"
+"1","
+"
+"1"," notAtlanta"
+"1","   116"
+"1","    28"
+"1","
+"

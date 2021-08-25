@@ -1,0 +1,8 @@
+"0","gavote <- gavote %>% "
+"0","  # add relative `undercount` column"
+"0","  mutate(undercount = (ballots - votes)/ballots) # percentage; vote for gore"
+"0",""
+"0","# --- rename rural to usage"
+"0","gavote <- gavote %>% "
+"0","  rename(usage = rural) %>% "
+"0","  mutate(pergore = gore/votes)"

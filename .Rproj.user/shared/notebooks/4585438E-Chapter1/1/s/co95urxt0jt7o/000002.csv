@@ -1,0 +1,2 @@
+"0","lmod <- lm(undercount ~ pergore + perAA,"
+"0","           data = gavote)"

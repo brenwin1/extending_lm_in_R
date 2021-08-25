@@ -1,0 +1,25 @@
+"0","df %>% 
+  ggplot() +
+  geom_line(aes(x = x,
+                y = y)) +
+  # plot area under the curve; after test stat. = 1
+  geom_ribbon(aes(x = x,
+                  ymax = y),
+              ymin = 0,
+              fill = ""red"",
+              alpha = 0.5,
+              data = filter(df, x >= 0.92025)) +
+  # plot vertical line; at test stat = 0.92025
+  geom_vline(xintercept = 0.92025,
+             colour = ""red"") + 
+  theme_bw() +
+  # annotate x-axis ticks 
+  scale_x_continuous(breaks = c(0, 0.92025, 25, 50, 75, 100),
+                     labels = c(""0"", ""\ntest\n stat: 0.92025"", ""25"", ""50"", ""75"", ""100"")) +
+  theme(axis.text.x = element_text(colour = c(""black"", ""red"", ""black"", ""black"", ""black"", ""black"")),
+        axis.ticks.x = element_line(colour = c(""black"", ""red"", ""black"", ""black"", ""black"", ""black"")),
+        panel.grid.minor = element_blank()) + # remove extra grid lines 
+  ggtitle(""Chi-square distribution with 1 degree of freedom"")
+"
+"2","Vectorized input to `element_text()` is not officially supported.
+Results may be unexpected or may change in future versions of ggplot2."

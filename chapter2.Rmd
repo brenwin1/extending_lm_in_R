@@ -1,0 +1,394 @@
+---
+title: "chapter2"
+author: "Brenwin"
+date: "22/08/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# --- load libraries
+library(tidyverse)
+library(faraway)
+library(broom)
+```
+# --- 2.1. Heart Disease Example
+```{r}
+wcgs <- faraway::wcgs %>% 
+  select(chd, height, cigs) 
+
+wcgs %>% 
+  summary()
+```
+
+```{r}
+# --- histogram for heights
+wcgs %>% 
+  ggplot(aes(x = height,
+             fill = chd)) +
+  geom_histogram(position = "dodge",
+                 binwidth = 1) +
+  colorspace::scale_fill_discrete_qualitative(rev = T)
+
+# --- histogram for cigs
+wcgs %>% 
+  ggplot(aes(x = cigs,
+             fill = chd)) +
+  geom_histogram(position = "dodge",
+                 binwidth = 5) +
+  colorspace::scale_fill_discrete_qualitative(rev = T)
+
+# --- plot cigs against height; facet by response (chd)
+wcgs %>% 
+  ggplot(aes(x = height,
+             y = cigs)) +
+  geom_point(position = "jitter",
+             alpha = 0.2) +
+  facet_grid(. ~ chd) 
+```
+
+# 2.2.1. logistic regression set up 
+
+```{r}
+# --- log odds to probability (p)
+eta <- seq(-10, 10, by = 0.1)
+
+p <- (exp(eta))/(1+exp(eta))
+
+df <- tibble(eta, p)
+
+df %>% 
+  # plot logistic function
+  ggplot(aes(x = eta,
+             y = p)) +
+  geom_line(size = 1.4) +
+  labs(y = expression(paste("p = ", over(e^eta, 1+e^eta))),
+       x = expression(eta))
+```
+
+
+# 2.2.2. fitting logistic regression 
+```{r}
+log_mod <- stats::glm(chd ~ height + cigs,
+                      family = binomial, # dist. of response
+                      data = wcgs)
+
+summary(log_mod)
+```
+
+```{r}
+broom::tidy(log_mod)
+```
+
+
+- specific case; of wider class called GLM
+
+
+```{r}
+beta <- coef(log_mod)
+
+wcgs <- wcgs %>% 
+  # plot y on 0, 1 scale
+  mutate(y = ifelse(chd == "yes",
+                    yes = 1,
+                    no = 0))
+```
+
+```{r}
+# --- plot 
+
+# --- keep cigs constant; vary height
+
+# keep cigs constant @ 0// vary height
+wcgs %>% 
+  # transform log(odds) to probability
+  mutate(p = exp(beta[1] + beta[2]*height + beta[3]*0)/(1 + exp(beta[1] + beta[2]*height + beta[3]*0))) %>% 
+  ggplot() +
+  geom_jitter(aes(x = height,
+                  y = y),
+              height = 0.1) +
+  geom_line(aes(x = height,
+                y = p),
+            colour = "blue") +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.5)) +
+  labs(y = "p(heart disease)",
+       x = "height")
+
+
+# keep cigs constant @ 0 (blue) and @20 (red)// vary height
+wcgs %>% 
+  # transform log(odds) to probability
+  mutate(p = exp(beta[1] + beta[2]*height + beta[3]*0)/(1 + exp(beta[1] + beta[2]*height + beta[3]*0)),
+         p2 = exp(beta[1] + beta[2]*height + beta[3]*20)/(1 + exp(beta[1] + beta[2]*height + beta[3]*20))) %>% 
+  ggplot() +
+  geom_jitter(aes(x = height,
+                  y = y),
+              height = 0.1) +
+  geom_line(aes(x = height,
+                y = p),
+            colour = "blue") +
+  geom_line(aes(x = height,
+                y = p2),
+            colour = "red") +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.5)) +
+  labs(y = "p(heart disease)",
+       x = "height")
+```
+
+```{r}
+# --- keep height constant @ 60// vary cigs
+wcgs %>% 
+  mutate(p = exp(beta[1] + beta[2]*60 + beta[3]*cigs)/(1 + exp(beta[1] + beta[2]*60 + beta[3]*cigs))) %>% 
+  ggplot() +
+  geom_jitter(aes(x = cigs,
+                  y = y),
+              height = 0.1) +
+  geom_line(aes(x = cigs,
+                y = p),
+            colour = "blue") +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.5)) +
+  labs(y = "p(heart disease)",
+       x = "cigs")
+```
+
+```{r}
+broom::tidy(log_mod) %>% 
+  mutate(exp_beta = exp(estimate),
+         .after = estimate)
+
+broom::glance(log_mod)
+summary(log_mod)
+```
+```{r}
+# --- obtain p-value
+stats::pchisq(32.2,
+              df = 2,
+              lower.tail = F) # area under curve; from from 32.2 to inf 
+
+# --- generate chi-square dist.; with 2 df.
+df <- tibble(x = 1:100, # generate x values
+             y = dchisq(seq(from = 1, to = 100, by = 1), df = 2))
+
+df %>% # generate density (y values)
+  ggplot() +
+  geom_line(aes(x = x,
+                y = y)) +
+  theme_bw() +
+  geom_vline(xintercept = 32.2,
+             colour = "red") +
+  # fill area under the curve (close to 0; so cannot see)
+  geom_ribbon(aes(x = x,
+                  ymax = y),
+              ymin = 0,
+              fill = "red",
+              data = filter(df, x > 32))
+```
+
+# testing individual predictors
+```{r}
+# ---  fit model; without height
+log_mod2 <- stats::glm(chd ~ cigs, 
+                       family = "binomial",
+                       data = wcgs)
+
+# --- run anova
+stats::anova(log_mod2, log_mod,
+             test = "Chi") # chi-sq. test 
+
+# --- compute p-value
+pchisq(q = 0.92025,
+       df = 1,
+       lower.tail = F)
+
+# --- plot
+df <- tibble(x = seq(from = 0, to = 100, by = 1),
+             # generate chi-sq. dist. values; 
+             y = dchisq(x = 0:100,
+                        df = 1)) # 1 degree of freedom
+
+df %>% 
+  ggplot() +
+  geom_line(aes(x = x,
+                y = y)) +
+  # plot area under the curve; after test stat. = 1
+  geom_ribbon(aes(x = x,
+                  ymax = y),
+              ymin = 0,
+              fill = "red",
+              alpha = 0.5,
+              data = filter(df, x >= 0.92025)) +
+  # plot vertical line; at test stat = 0.92025
+  geom_vline(xintercept = 0.92025,
+             colour = "red") + 
+  theme_bw() +
+  # annotate x-axis ticks 
+  scale_x_continuous(breaks = c(0, 0.92025, 25, 50, 75, 100),
+                     labels = c("0", "\ntest\n stat: 0.92025", "25", "50", "75", "100")) +
+  theme(axis.text.x = element_text(colour = c("black", "red", "black", "black", "black", "black")),
+        axis.ticks.x = element_line(colour = c("black", "red", "black", "black", "black", "black")),
+        panel.grid.minor = element_blank()) + # remove extra grid lines 
+  ggtitle("Chi-square distribution with 1 degree of freedom")
+  
+  
+
+ 
+```
+```{r}
+stats::drop1(log_mod, 
+             test = "Chi")
+```
+# z-test 
+```{r}
+broom::tidy(log_mod)
+
+stats::confint(log_mod)
+```
+
+```{r}
+predict(log_mod,
+        residuals = "link")
+```
+
+
+# 2.4. diagnostics 
+```{r}
+# --- extract residuals; on log(odds) scale
+lin_pred <- stats::predict(object = log_mod,
+                           type = "link")
+
+# --- extract residuals; on probability scale
+prob_pred <- stats::predict(object = log_mod,
+                            type = "response")
+
+
+df <- tibble(lin_pred = lin_pred, # fitted values; on log(odds)
+             prob_pred = prob_pred) # fitted values; on probability scale
+
+# e.g. convert fitted values; on log odds scale; to probability scale; via link function
+df %>% 
+  mutate(prob_pred2 = exp(lin_pred)/(1+exp(lin_pred)), # log-odds to probability
+         lin_pred2 = log(prob_pred/(1-prob_pred))) # probability to log(odds)
+
+broom::augment(log_mod,
+               type.resid = "deviance") # default
+```
+```{r}
+
+# --- plot logistic regression; on probability scale 
+df <- tibble(x = lin_pred, # eta = \hat{\beta_0} + \hat{\beta_1}.x1 + \hat{\beta_2}.x2
+       y_hat = prob_pred, # y_hat = exp(eta) / (1 + exp(eta)) *transform log(odds) to probability scale
+       raw_resid = wcgs$y - prob_pred, # y - y_hat
+       actual_y = wcgs$y) # 0 & 1's
+
+df %>% 
+  ggplot() +
+  # fitted logistic regression
+  geom_line(aes(x = x,
+                y = y_hat),
+            size = 1.5) +
+  # actual y values (0 & 1) 
+  geom_point(aes(x = x,
+                 y = actual_y,
+                 colour = factor(actual_y)),
+             alpha = 0.8) +
+  # draw residual line (from y to y_hat); for each x value
+  geom_segment(aes(x = x,
+                   y = y_hat,
+                   xend = x,
+                   yend = actual_y,
+                   colour = factor(actual_y)),
+               alpha = 0.1) +
+  theme_bw() +
+  # colour chd (red)// no chd(blue)
+  scale_colour_manual("chd",
+                      values = c("blue", "red"),
+                      labels = c("0: no chd", "1: chd")) +
+	# add axes labels & title 
+  labs(x = latex2exp::TeX("$\\eta = \\beta_0 + \\beta_1.height + \\beta_2.cigs$"),
+       y = latex2exp::TeX("$\\hat{y} = \\frac{e^{\\eta}}{1+e^{\\eta}}$")) +
+  ggtitle("fitted logistic regression on probability scale")
+
+# --- residuals against fitted values 
+df %>% 
+  ggplot(aes(x = x,
+             y = raw_resid)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = latex2exp::TeX("fitted values: $\\eta = \\beta_0 + \\beta_1.height + \\beta_2.cigs$"),
+       y = latex2exp::TeX("residuals: $y-\\hat{y}$"))
+  ggtitle("residual vs. fitted values")
+```
+
+
+```{r}
+wcgs$y - prob_pred
+# or 
+residuals(log_mod,
+          type = "response")
+```
+
+
+```{r}
+
+# --- create grid; for regression modelling (based off min & max of variables)
+height <- seq(from = 60, to = 90, by = 0.5)
+cigs <- seq(from = 0, to = 100, by = 1)
+pred_grid <- expand.grid(height = height, cigs = cigs)
+
+# --- add linear predictions; on log odds scale (regression plane)
+pred_grid <- pred_grid %>% 
+  mutate(lm_pred = -4.50161397 + 0.02520779*height + 0.02312740*cigs)
+
+# --- plot regression plane *where log-lik. is maximised  
+s3d <- scatterplot3d::scatterplot3d(x = pred_grid$height,
+                                    y = pred_grid$cigs,
+                                    z = pred_grid$lm_pred,
+                                    angle = 60,
+                                    color = "dodgerblue",
+                                    pch = 1,  # point symbol 
+                                    xlab = "height (in)",
+                                    ylab = "cigs",
+                                    zlab = "chd")
+
+# overlay observations (black points) 
+s3d$points3d(wcgs$height, 
+             wcgs$cigs,
+             broom::augment(log_mod)$.fitted, # y-value; projected onto the plane 
+             pch = 16) # point type 
+```
+
+## deviance residuals 
+```{r}
+gdf <- wcgs %>% 
+  mutate(residuals = residuals(log_mod),
+         lin_pred = predict(log_mod)) %>%  # fitted values; on log(odds) scale 
+  # create bins
+  group_by(cut(lin_pred, # divide variable into factors
+               breaks = unique(quantile(lin_pred, # breakpoints (divide based on quantiles); use `unique` to deal with tied values
+                                        (1:100)/101)))) %>% 
+  summarise(residuals = mean(residuals),
+            lin_pred = mean(lin_pred))
+
+gdf %>% 
+  ggplot() +
+  geom_point(aes(x = lin_pred,
+                 y = residuals)) +
+  theme_bw()
+
+broom::augment(log_mod) %>% 
+  group_by(cut(.fitted, # divide variable into factors
+               breaks = unique(quantile(.fitted, # breakpoints (divide based on quantiles); use `unique` to deal with tied values
+                                        (1:100)/101)))) %>% # 100 bins (about 30 obs. each)
+  # within each bin; get mean of residuals & linear predictor 
+  summarise(residuals = mean(.resid),
+            lin_pred = mean(.fitted)) %>% 
+  ggplot() +
+  geom_point(aes(x = lin_pred,
+                 y = residuals))
+```
+
+
+
+
+

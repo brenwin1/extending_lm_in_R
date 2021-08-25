@@ -1,0 +1,281 @@
+---
+title: "Chapter1"
+author: "Brenwin"
+date: "27/07/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# --- load libraries
+library(faraway)
+library(tidyverse)
+```
+
+
+# USA 2000 presdiential election; in Georgia
+
+## read in data 
+```{r}
+gavote <- faraway::gavote
+str(faraway::gavote)
+```
+## numerical summaries
+
+### summary + data wrangling
+```{r}
+gavote <- gavote %>% 
+  # add relative `undercount` column
+  mutate(undercount = (ballots - votes)/ballots) # percentage; vote for gore
+
+gavote <- gavote %>% 
+  rename(usage = rural) %>% # rename rural to usage
+  mutate(pergore = gore/votes) # % of votes for gore
+```
+
+### correlations
+```{r}
+cor(gavote[,c(3,10,11,12)]) # correlations of quantiative variables of interest
+```
+
+
+## graphical summaries
+
+### a numerical variable
+```{r}
+hist(gavote$undercount,
+     main = "Undercount",
+     xlab = "Percent Undercount")
+
+# --- histogram
+gavote %>% 
+  ggplot() +
+  geom_histogram(aes(x = undercount)) +
+  theme_bw()
+
+# --- kernel density + rug plot
+gavote %>% 
+  ggplot(aes(x = undercount)) +
+  geom_density() +
+  geom_rug() +
+  theme_bw()
+```
+
+### categorical variables
+```{r}
+gavote %>% 
+  ggplot() +
+  geom_bar(aes(x = forcats::fct_infreq(equip))) + # reorder factor levels; by frequency 
+  labs(x = "equip",
+       title = "Bar chart of equipment")
+  theme_bw()
+```
+### scatterplots
+```{r}
+gavote %>% 
+  ggplot(aes(x = perAA,
+             y = pergore)) +
+  geom_point() +
+  labs(x = "Proportion African American",
+       y = "Proportion for Gore")
+```
+
+
+
+### side-by-side boxplots
+```{r}
+gavote %>% 
+  ggplot() +
+  geom_boxplot(aes(x = equip,
+                   y = undercount)) +
+  theme_bw()
+```
+
+### cross-tabulations
+```{r}
+xtabs(~ atlanta + rural,
+      gavote)
+
+gavote %>% 
+  janitor::tabyl(var1 = atlanta,
+                 var2 = usage)
+```
+## Linear model
+
+### fitting a linaer model
+```{r}
+lmod <- lm(undercount ~ pergore + perAA,
+           data = gavote)
+```
+```{r}
+coef(lmod) # obtain \hat{\beta}: least square estimates of \beta
+
+predict(lmod) # fitted values *need; extrapolate model; for predicted values
+
+residuals(lmod) # extract residuals 
+```
+
+```{r}
+deviance(lmod)
+
+df.residual(lmod)
+nrow(gavote) - length(coef(lmod))
+
+# residual std. error
+sqrt(deviance(lmod)/df.residual(lmod))
+
+lmod_sum <- summary(lmod)
+lmod_sum$sigma # extract resid. std. error
+
+# --- R^2
+lmod_sum$r.squared
+
+cor(predict(lmod), gavote$undercount)^2
+
+lmod_sum$adj.r.squared
+```
+```{r}
+# center pergore & perAA terms; prior to fitting lm
+gavote <- gavote %>% 
+  mutate(cpergore = pergore - mean(pergore),
+         cperAA = perAA - mean(perAA))
+
+lmodi <- lm(undercount ~ cperAA + cpergore*usage + equip,
+           data = gavote)
+summary(lmodi)
+
+# --- check categorical variables (factor) levels
+gavote %>% 
+  count(equip) 
+
+gavote %>% 
+  count(usage)
+```
+
+## F-test
+```{r}
+anova(lmod, lmodi)
+
+broom::tidy(lmodi)
+
+stats::drop1(lmodi,
+             test = "F")
+```
+
+## confidence intervals
+```{r}
+stats::confint(lmodi,
+               level = 0.95) # 95% conf. intervals (default)
+
+plot(lmodi)
+
+gavote[cooks.distance(lmodi) > 0.1,]
+
+broom::augment(lmodi) %>% 
+  filter(.cooksd > 0.1)
+```
+
+```{r}
+# half-normal plot of leverages
+faraway::halfnorm(hatvalues(lmodi))
+
+gavote[hatvalues(lmodi) > 0.3,]
+```
+
+```{r}
+stats::termplot(lmodi,
+                partial = TRUE,
+                terms = 1)
+
+visreg::visreg(lmodi,
+               xvar = "cperAA")
+```
+
+# robust regression 
+
+```{r}
+rlmodi <- MASS::rlm(undercount ~ cperAA + cpergore*usage + equip,
+                    data = gavote)
+
+summary(rlmodi)
+```
+# weighted least squares
+```{r}
+wlmodi <- lm(undercount ~ cperAA + cpergore*usage + equip,
+             data = gavote,
+             weight = ballots)
+summary(wlmodi)
+```
+## stats::step()
+```{r}
+# define big model
+biglm <- lm(undercount ~ (equip + econ + usage + atlanta)^2 + (equip + econ + usage + atlanta)*(perAA + pergore),
+            data = gavote)
+
+# implement backwise search
+smalllm <- biglm %>% 
+  stats::step(trace = FALSE)
+summary(smalllm)
+```
+
+```{r}
+drop1(smalllm,
+      test = "F")
+```
+```{r}
+final_lm <- lm(undercount ~ equip + econ + perAA + equip:econ + equip:perAA,
+               data = gavote)
+
+summary(final_lm)
+```
+
+```{r}
+# --- create new values (all combinations of econ & equip & median of perAA)
+pred_df <- data.frame(econ = rep(levels(gavote$econ), 5),
+                      equip = rep(levels(gavote$equip), rep(3,5)),
+                      perAA = 0.233) # let % of African American be constant at 0.233
+
+# predict each row (combination of obs.)
+pred <- predict(final_lm,
+                new = pred_df)
+
+# bind predicted column to df
+pred_df$pred <- round(pred, 3)
+
+# put predicted values; in wide form
+pred_df %>% 
+  select(-perAA) %>% 
+  pivot_wider(names_from = equip,
+              values_from = pred)
+
+```
+
+```{r}
+# use combination of perAA & equip; with `econ` level to middle
+pred_df <- data.frame(econ = rep("middle", 15),
+                     equip = rep(levels(gavote$equip), rep(3,5)),
+                     perAA = rep(c(.11, 0.23, 0.35), 5)) # set; perAA; at 3 levels (1st quartile, median & third quartile)
+
+# predict with each row (combination of variables)
+pred <- predict(final_lm,
+                new = pred_df)
+
+# bind to pred
+pred_df$pred <- pred
+
+
+pred_df %>% 
+  # create 3 factor levels for perAA (low, medium, high); for easier assessment of table  
+  mutate(propAA = case_when(
+    perAA == 0.11 ~ "low",
+    perAA == 0.23 ~ "medium",
+    perAA == 0.35 ~ "high"
+  )) %>% 
+  select(-econ, -perAA) %>% 
+  mutate(pred = round(pred, 3)) %>% 
+  pivot_wider(names_from = equip,
+              values_from = pred)
+```
+
+

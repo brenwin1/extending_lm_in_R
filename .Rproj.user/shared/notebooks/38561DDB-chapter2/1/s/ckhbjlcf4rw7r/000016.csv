@@ -1,0 +1,4 @@
+"0","beta <- coef(log_mod)
+"
+"2","Error in coef(log_mod) : object 'log_mod' not found
+"
